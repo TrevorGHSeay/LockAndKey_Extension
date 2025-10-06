@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Download Controller",
+  "version": "1.0",
+  "description": "Allows or denies all downloads based on a configurable constant.",
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action":{
+    "default_popup": "setup.html"
+  },
+
+  "permissions": ["downloads", "webRequest", "storage", "windows", "nativeMessaging"],
+  "host_permissions": [
+    "file:///*"
+  ]
+}

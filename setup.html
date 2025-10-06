@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PKI Setup</title>
+</head>
+<body style="font-family: Arial; padding: 20px; max-width: 400px; margin: 0 auto;">
+  <h2>Enter this client's PKI setup details.</h2>
+  <form id="setupForm">
+    <label for="cn">Common Name (CN):</label><br>
+    <input type="text" id="cn" name="cn" required style="width: 100%; margin-bottom: 10px; padding: 5px;"><br>
+    
+    <label for="organization">Organization (O):</label><br>
+    <input type="text" id="organization" name="organization" required style="width: 100%; margin-bottom: 10px; padding: 5px;"><br>
+    
+    <label for="country">Country (C):</label><br>
+    <input type="text" id="country" name="country" maxlength="2" required style="width: 100%; margin-bottom: 10px; padding: 5px;" placeholder="e.g., US"><br>
+    
+    <label for="state_or_province">State/Province (SP):</label><br>
+    <input type="text" id="state_or_province" name="state_or_province" maxlength="2" required style="width: 100%; margin-bottom: 10px; padding: 5px;" placeholder="e.g., NY"><br>
+    
+    <label for="password">Password:</label><br>
+    <input type="password" id="password" name="password" required style="width: 100%; margin-bottom: 10px; padding: 5px;"><br>
+    
+    <button type="submit" style="width: 100%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer;">Submit</button>
+  </form>
+  <script src="setup.js"></script>
+</body>
+</html>
