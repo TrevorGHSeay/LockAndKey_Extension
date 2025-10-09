@@ -11,7 +11,19 @@
     "default_popup": "setup.html"
   },
 
-  "permissions": ["downloads", "webRequest", "storage", "windows", "nativeMessaging"],
+  "side_panel": {
+    "default_path": "sidePanel.html"
+  },
+
+  "permissions": [
+    "downloads",
+    "webRequest",
+    "storage",
+    "windows",
+    "nativeMessaging",
+    "sidePanel"
+  ],
+
   "host_permissions": [
     "file:///*"
   ]

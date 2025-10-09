@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>File Signer</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 10px; width: 300px; }
+    p { margin-bottom: 15px; }
+    button { margin: 5px 0; width: 100%; }
+    #status { color: red; }
+  </style>
+</head>
+<body>
+  <p>This extension signs a selected file using the keys and certificate stored in pkiHelper. The signature and certificate (PEM format) are prepended to the file content. The resulting file is saved with a ".safe" extension in the same directory (e.g., "file.docx" becomes "file.docx.safe"), and the original file is deleted.</p>
+  <button id="selectFile">Select File to Sign</button>
+  <div id="status"></div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
