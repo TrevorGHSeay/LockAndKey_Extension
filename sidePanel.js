@@ -1,8 +1,3 @@
-// sidepanel.js - Modified to select the file to sign, prompt for password, delegate to pkiHelper in background.js.
-// Updated to handle user gesture for showSaveFilePicker by requiring a second click after signing.
-// Further updated to handle signedContent as base64 string and decode it.
-// Updated to send fileContent as base64 to avoid serialization issues.
-// Updated arrayBufferToBase64 to use array join to avoid stack overflow for large files.
 
 let signedData = null;
 let safeName = null;
@@ -78,9 +73,11 @@ async function handleSelectFile() {
         }
       ]
     });
+
     const file = await fileHandle.getFile();
     const fileContent = await file.arrayBuffer();
     const fileName = file.name;
+    const fileSize = file.size;
 
     // Prompt for password
     const password = prompt('Enter password to decrypt private key:');
@@ -96,20 +93,26 @@ async function handleSelectFile() {
       type: 'signFile',
       fileBase64,
       fileName,
-      password
+      password,
+      fileSize
     }, (response) => {
+
       if (chrome.runtime.lastError) {
         statusDiv.textContent = 'Error: ' + chrome.runtime.lastError.message;
         return;
-      } else if (response.success) {
+      }
+
+      else if (response.success) {
         signedData = base64ToUint8Array(response.signedContent);
         safeName = response.safeName;
         button.textContent = 'Save Signed File As...';
         button.onclick = handleSaveFile;
         statusDiv.textContent = 'Signing complete. Click the button to save the file.';
-      } else {
-        statusDiv.textContent = 'Error: ' + response.error;
       }
+
+      else
+        statusDiv.textContent = 'Error: ' + response.error;
+      
     });
   } catch (error) {
     console.error('File selection failed:', error);

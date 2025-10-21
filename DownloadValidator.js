@@ -86,42 +86,120 @@ class DownloadValidator {
     }
   }
 
-  // Full signature verification: validate cert first, then file sig with cert pubkey
-  verifySignatureWithCert(originalContent, signature, certPem) {
+// Full signature verification: validate cert first, then file sig with cert pubkey
+verifySignatureWithCert(originalContent, signature, certPem) {
 
-    if (!this.#caRootPem)
-      throw new Error("CA root not loaded");
-    
+  if (!this.#caRootPem)
+    throw new Error("CA root not loaded");
+  
 
-    // Validate cert against CA
-    const certResult = this.#validateCertificate(certPem, this.#caRootPem);
-    if (!certResult.valid)
-      return { valid: false, reason: certResult.reason };
-    
+  // Validate cert against CA
+  const certResult = this.#validateCertificate(certPem, this.#caRootPem);
+  if (!certResult.valid)
+    return { valid: false, reason: certResult.reason };
+  
 
-    try {
-      const signingCert = forge.pki.certificateFromPem(certPem);
-      const publicKey = signingCert.publicKey;
+  try {
+    const signingCert = forge.pki.certificateFromPem(certPem);
+    const publicKey = signingCert.publicKey;
 
-      // Hash content with forge
-      const md = forge.md.sha256.create();
-      md.update(forge.util.createBuffer(originalContent));
-      const digest = md.digest();
+    // DEBUG
+    console.log('Verify public exponent e hex:', publicKey.e.toString(16));
+    console.log('Verify modulus n hex:', publicKey.n.toString(16));
 
-      // Signature buffer
-      const sigBuffer = forge.util.createBuffer(signature);
-
-      const isValid = publicKey.verify(digest, sigBuffer);
-
-      return { valid: isValid, reason: isValid ? "" : "File signature invalid" };
+    // Hash content with forge (chunked to handle large files and convert Uint8Array to binary string)
+    const md = forge.md.sha256.create();
+    const chunkSize = 1024 * 1024; // 1MB chunks
+    for (let offset = 0; offset < originalContent.length; offset += chunkSize) {
+      const chunk = originalContent.subarray(offset, offset + chunkSize);
+      const binaryChunk = String.fromCharCode.apply(null, chunk);
+      md.update(binaryChunk);
     }
-    catch (error) {
-      console.error("File signature verification error:", error);
-      return { valid: false, reason: "Verification error" };
+    const digest = md.digest().getBytes();  // Raw digest as binary string
+
+    // Convert signature Uint8Array to binary string
+    const sigBytes = String.fromCharCode.apply(null, signature);
+
+    // Manual verification: raw decryption + padding validation + DigestInfo parse
+    let decrypted = publicKey.encrypt(sigBytes, 'RAW');  // Use 'RAW' scheme for no padding
+
+    // Pad with leading zeros if shorter than modulus byte length (should be rare but handles edge cases)
+    const keyByteLength = Math.ceil(publicKey.n.bitLength() / 8);
+    if (decrypted.length < keyByteLength) {
+      decrypted = '\x00'.repeat(keyByteLength - decrypted.length) + decrypted;
     }
+
+    // Validate PKCS#1 v1.5 signature padding: 00 || 01 || FF...FF || 00 || DigestInfo
+    if (decrypted.charAt(0) !== '\x00') {
+      console.log('Verification failed: No leading 0x00');
+      return { valid: false, reason: 'Invalid padding (no leading 0x00)' };
+    }
+    if (decrypted.charAt(1) !== '\x01') {
+      console.log('Verification failed: No 0x01 after leading 0x00');
+      return { valid: false, reason: 'Invalid padding (no 0x01)' };
+    }
+
+    let pos = 2;
+    while (pos < decrypted.length && decrypted.charAt(pos) === '\xFF') {
+      pos++;
+    }
+
+    if (decrypted.charAt(pos) !== '\x00') {
+      console.log('Verification failed: No separator 0x00 after FFs');
+      return { valid: false, reason: 'Invalid padding (no separator 0x00)' };
+    }
+
+    const digInfoBytes = decrypted.substring(pos + 1);
+
+    // Parse DigestInfo ASN.1
+    const digInfoAsn1 = forge.asn1.fromDer(digInfoBytes);
+
+    // Expect SEQUENCE [ SEQUENCE [OID, NULL], OCTETSTRING (digest) ]
+    if (digInfoAsn1.type !== forge.asn1.Type.SEQUENCE || digInfoAsn1.value.length !== 2) {
+      console.log('Verification failed: Invalid DigestInfo structure');
+      return { valid: false, reason: 'Invalid DigestInfo ASN.1' };
+    }
+
+    const algId = digInfoAsn1.value[0];
+    if (algId.type !== forge.asn1.Type.SEQUENCE || algId.value.length !== 2 ||
+        algId.value[0].type !== forge.asn1.Type.OID || algId.value[1].type !== forge.asn1.Type.NULL) {
+      console.log('Verification failed: Invalid algorithm ID');
+      return { valid: false, reason: 'Invalid algorithm ID' };
+    }
+
+    const oidBytes = algId.value[0].value;
+    const oid = forge.asn1.derToOid(oidBytes);
+    if (oid !== forge.pki.oids.sha256) {  // Ensure it's SHA-256 OID
+      console.log('Verification failed: Unexpected OID', oid);
+      return { valid: false, reason: 'Unexpected hash algorithm OID' };
+    }
+
+    const embeddedDigestAsn1 = digInfoAsn1.value[1];
+    if (embeddedDigestAsn1.type !== forge.asn1.Type.OCTETSTRING) {
+      console.log('Verification failed: No OCTETSTRING for digest');
+      return { valid: false, reason: 'Invalid digest format' };
+    }
+
+    const embeddedDigest = embeddedDigestAsn1.value;
+    if (embeddedDigest.length !== 32) {  // SHA-256 is 32 bytes
+      console.log('Verification failed: Wrong digest length', embeddedDigest.length);
+      return { valid: false, reason: 'Wrong digest length' };
+    }
+
+    if (embeddedDigest !== digest) {
+      console.log('Verification failed: Digests do not match');
+      return { valid: false, reason: 'Digests do not match' };
+    }
+
+    // If all checks pass
+    return { valid: true, reason: "" };
   }
+  catch (error) {
+    console.error("File signature verification error:", error);
+    return { valid: false, reason: "Verification error" };
+  }
+}
 
-  // Server validation for issuance and revocation
   async validateWithServer(certPem) {
     if (!this.isReady) {
       throw new Error("Validator not ready");
@@ -160,14 +238,14 @@ class DownloadValidator {
     const bufferStr = new TextDecoder("utf-8").decode(fileBuffer);
     let startIndex = bufferStr.indexOf(startCert);
     let endIndex = bufferStr.indexOf(endCert, startIndex < 0 ? 0 : startIndex);
+    
     if (endIndex === -1) {
       return { valid: false, reasons: ["Invalid signed file: No certificate"] };
     }
     endIndex += endCert.length;
-    // Skip whitespace
-    while (endIndex < bufferStr.length && /\s/.test(bufferStr.charAt(endIndex))) {
+    // Skip only trailing line breaks (e.g., \n or \r\n), not all whitespace
+    while (endIndex < bufferStr.length && (bufferStr.charAt(endIndex) === '\n' || bufferStr.charAt(endIndex) === '\r'))
       endIndex++;
-    }
     const certPem = bufferStr.substring(startIndex, endIndex).trim();
     if (!certPem.startsWith(startCert)) {
       return { valid: false, reasons: ["Invalid certificate format"] };
@@ -177,6 +255,9 @@ class DownloadValidator {
     if (sigStart + SIGNATURE_SIZE > fileBuffer.length) {
       return { valid: false, reasons: ["File too small for signature"] };
     }
+
+    // DEBUG
+    console.log('Sig start byte (hex):', fileBuffer[sigStart].toString(16));
 
     const signature = fileBuffer.slice(sigStart, sigStart + SIGNATURE_SIZE);
     const originalContent = fileBuffer.slice(sigStart + SIGNATURE_SIZE);

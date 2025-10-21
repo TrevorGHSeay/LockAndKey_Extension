@@ -28,6 +28,10 @@ class PkiHelper {
   try {
     const privateKey = decryptEncryptedPrivateKey(this.#privateKeyEnc, password);
 
+    // DEBUG
+    console.log('Sign public exponent e hex:', privateKey.e.toString(16));
+    console.log('Sign modulus n hex:', privateKey.n.toString(16));
+
     const md = forge.md.sha256.create();
 
     const chunkSize = 1024 * 1024; // 1MB chunks to avoid large strings
