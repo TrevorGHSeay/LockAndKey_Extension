@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Download Controller",
+  "name": "Lock 'N Key",
   "version": "1.0",
   "description": "Allows or denies all downloads based on a configurable constant.",
   "background": {

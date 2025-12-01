@@ -260,8 +260,10 @@ chrome.downloads.onChanged.addListener((delta) => {
         chrome.downloads.erase({id});
 
         // Save clean content to same directory without .safe
-        const dir = localPath.replaceAll('\\', '/').split('/').pop();
-        const cleanPath = dir + result.cleanFilename;
+        const pathSplit = localPath.replaceAll('\\', '/').split('/');
+        pathSplit.pop();
+        const dir = pathSplit.join('/');
+        const cleanPath = dir + '/' + result.cleanFilename;
 
         await initiateCleanDownload(result.originalContent, cleanPath);
 
